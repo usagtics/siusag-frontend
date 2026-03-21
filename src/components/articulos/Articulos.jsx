@@ -97,7 +97,7 @@ export default function Articulos({ isAdmin = false, onConsumo, saldoDisponible 
     setEditing(false);
   };
 
-const manejarConsumo = async (art) => {
+  const manejarConsumo = async (art) => {
     if (loadingId !== null) return; 
 
     const cantElegida = cantidades[art.id] || 1;
@@ -152,27 +152,54 @@ const manejarConsumo = async (art) => {
     } finally {
       setLoadingId(null); 
     }
-};
+  };
 
-  const productoCritico = [...articulos].sort((a, b) => (a.stock || 0) - (b.stock || 0))[0];
+  // Encontramos TODOS los productos que tengan menos de 5 en stock
+  const productosCriticos = articulos.filter(art => (art.stock || 0) < 5);
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6 animate-in fade-in duration-500">
       
       {/* TARJETAS DE MÉTRICAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <div className="bg-blue-600 p-6 rounded-2xl shadow-xl text-white flex items-center gap-4">
           <div className="bg-blue-400/30 p-3 rounded-xl"><Package size={32} /></div>
           <div><p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest">Total Productos</p><h3 className="text-3xl font-black italic">{articulos.length}</h3></div>
         </div>
+        
         <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-100 flex items-center gap-4">
           <div className="bg-emerald-100 text-emerald-600 p-3 rounded-xl"><RefreshCw size={32} /></div>
           <div><p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Existencia Global</p><h3 className="text-3xl font-black text-slate-700 italic">{articulos.reduce((acc, art) => acc + (art.stock || 0), 0)}</h3></div>
         </div>
-        <div className={`p-6 rounded-2xl shadow-md border border-l-8 ${productoCritico?.stock < 5 ? 'bg-red-50 border-red-500' : 'bg-white border-slate-100'} flex flex-col justify-center`}>
-          <div className="flex items-center gap-3"><AlertTriangle className={productoCritico?.stock < 5 ? "text-red-500" : "text-slate-300"} size={20}/><p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Urgente reponer:</p></div>
-          <h3 className="text-sm font-black text-slate-800 mt-1 truncate uppercase italic">{productoCritico ? `${productoCritico.nombre} (${productoCritico.stock})` : "Cargando..."}</h3>
-        </div>
+        
+        {/* TARJETA MODIFICADA: Ahora muestra una lista de los urgentes, SOLO visible para ADMIN */}
+        {isAdmin && (
+          <div className={`p-6 rounded-2xl shadow-md border flex flex-col justify-start overflow-hidden h-32
+            ${productosCriticos.length > 0 ? 'bg-red-50 border-red-500 border-l-8' : 'bg-white border-slate-100 border-l-8 border-emerald-500'}`}>
+            
+            <div className="flex items-center gap-3 mb-2">
+              <AlertTriangle className={productosCriticos.length > 0 ? "text-red-500" : "text-emerald-500"} size={20}/>
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                {productosCriticos.length > 0 ? 'Urgente reponer:' : 'Stock Saludable'}
+              </p>
+            </div>
+            
+            <div className="overflow-y-auto pr-2 scrollbar-thin">
+              {productosCriticos.length > 0 ? (
+                <div className="space-y-1">
+                  {productosCriticos.map(prod => (
+                    <h3 key={prod.id} className="text-xs font-black text-slate-800 uppercase italic flex justify-between">
+                      <span className="truncate">{prod.nombre}</span>
+                      <span className="text-red-600 ml-2">({prod.stock})</span>
+                    </h3>
+                  ))}
+                </div>
+              ) : (
+                <h3 className="text-sm font-black text-slate-400 mt-1 uppercase italic">Nada por ahora</h3>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {isAdmin && (
@@ -265,7 +292,6 @@ const manejarConsumo = async (art) => {
                       </div>
                     ) : (
                       <button 
-                        // BLOQUEO: Deshabilitado si loadingId no es nulo (cualquier botón cargando)
                         disabled={loadingId !== null || art.stock <= 0} 
                         onClick={() => manejarConsumo(art)} 
                         className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-lg transition-all active:scale-95 
