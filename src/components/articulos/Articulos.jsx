@@ -98,13 +98,30 @@ export default function Articulos({ isAdmin = false, onConsumo, saldoDisponible 
   };
 
 const manejarConsumo = async (art) => {
-    if (loadingId !== null) return; // Bloqueo de clics rápidos
+    if (loadingId !== null) return; 
 
     const cantElegida = cantidades[art.id] || 1;
     const totalSimulado = art.precio_unitario * cantElegida;
 
-    if (art.stock < cantElegida) return Swal.fire("Error", "No hay stock", "error");
-    if (totalSimulado > saldoDisponible) return Swal.fire("Error", "Sin saldo proyectado", "warning");
+    // 1. EL STOCK SIGUE SIENDO OBLIGATORIO (No podemos dar lo que no existe físicamente)
+    if (art.stock < cantElegida) return Swal.fire("Error", "No hay stock suficiente", "error");
+
+    // 2. LÓGICA DE SOBREGIRO (AQUÍ ESTÁ EL CAMBIO CLAVE)
+    if (totalSimulado > saldoDisponible) {
+      const confirmacion = await Swal.fire({
+        title: '¡Saldo Insuficiente!',
+        text: `Esta solicitud excede tu capital actual por $${(totalSimulado - saldoDisponible).toFixed(2)}. El monto se descontará de tu presupuesto del próximo mes. ¿Deseas continuar?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#94a3b8',
+        confirmButtonText: 'Sí, solicitar sobregiro',
+        cancelButtonText: 'Cancelar'
+      });
+
+      // Si el usuario se arrepiente, cancelamos
+      if (!confirmacion.isConfirmed) return;
+    }
 
     setLoadingId(art.id);
     try {
@@ -121,14 +138,21 @@ const manejarConsumo = async (art) => {
         if (onConsumo) onConsumo();
         await fetchArticulos();
         setCantidades(prev => ({ ...prev, [art.id]: 1 }));
-        Swal.fire({ icon: 'success', title: 'Solicitud Creada', toast: true, position: 'top-end', timer: 2000 });
+        Swal.fire({ 
+          icon: 'success', 
+          title: 'Solicitud Creada', 
+          text: totalSimulado > saldoDisponible ? 'Se ha registrado el sobregiro correctamente.' : '',
+          toast: true, 
+          position: 'top-end', 
+          timer: 3000 
+        });
       }
     } catch (err) {
       Swal.fire("Error", "Error de red", "error");
     } finally {
-      setLoadingId(null); // Desbloqueo tras respuesta
+      setLoadingId(null); 
     }
-  };
+};
 
   const productoCritico = [...articulos].sort((a, b) => (a.stock || 0) - (b.stock || 0))[0];
 

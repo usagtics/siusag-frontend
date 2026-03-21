@@ -191,3 +191,13 @@ export const getHistorialReportes = async (inicio = "", fin = "") => {
     throw err;
   }
 };
+// SERVICIO PARA CORTE MENSUAL Y REINICIO DE PRESUPUESTOS
+export const guardarCorte = async (datos) => {
+  try {
+    const res = await axios.post(`${API_BASE}/api/reportes/guardar-corte`, datos);
+    return res.data;
+  } catch (err) {
+    console.error("Error al ejecutar el corte mensual:", err);
+    throw err;
+  }
+};
