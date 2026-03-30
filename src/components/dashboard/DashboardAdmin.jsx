@@ -9,7 +9,7 @@ import {
   guardarCorte 
 } from "../../services/api";
 import Swal from "sweetalert2";
-import { Filter, CheckCircle, Clock, Package, History } from "lucide-react"; 
+import { Filter, CheckCircle, Clock, Package, History, Wallet, TrendingUp } from "lucide-react"; 
 
 export default function DashboardAdmin() {
   const [reporte, setReporte] = useState([]);
@@ -38,7 +38,7 @@ export default function DashboardAdmin() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-const manejarCierreMensual = async () => {
+  const manejarCierreMensual = async () => {
     const { value: formValues } = await Swal.fire({
       title: 'Ejecutar Corte Mensual',
       html: `
@@ -159,6 +159,12 @@ const manejarCierreMensual = async () => {
       return acc;
     }, []);
 
+  // --- MATEMÁTICAS GLOBALES ---
+  const presupuestoTotalUSAG = reporte.reduce((acc, item) => acc + parseFloat(item.limite_presupuesto || 0), 0);
+  const gastoTotalUSAG = reporte.reduce((acc, item) => acc + parseFloat(item.gasto_total || 0), 0);
+  const porcentajeGlobal = presupuestoTotalUSAG > 0 ? (gastoTotalUSAG / presupuestoTotalUSAG) * 100 : 0;
+  // ----------------------------
+
   return (
     <div className="min-h-screen bg-[#f8fafc]">
       <Navbar />
@@ -178,6 +184,46 @@ const manejarCierreMensual = async () => {
             </div>
           )}
         </div>
+
+        {/* --- TARJETA DE FINANZAS GLOBALES --- */}
+        <div className="bg-[#0f172a] rounded-[2.5rem] shadow-2xl overflow-hidden mb-8 border border-white/10 flex flex-col md:flex-row relative">
+          <div className="absolute right-0 top-0 opacity-5 scale-150 transform translate-x-1/4 -translate-y-1/4 text-blue-500">
+            <Wallet size={300} />
+          </div>
+          
+          <div className="p-8 md:p-10 flex-1 z-10">
+            <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-blue-400 mb-2">Presupuesto Global USAG</h2>
+            <div className="text-5xl md:text-6xl font-black text-white italic tracking-tighter">
+              ${presupuestoTotalUSAG.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Capital total asignado a planteles</p>
+          </div>
+
+          <div className="bg-white/5 border-l border-white/10 p-8 md:p-10 flex-1 z-10 flex flex-col justify-center backdrop-blur-sm">
+            <div className="flex justify-between items-end mb-4">
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-400 flex items-center gap-2 mb-1">
+                  <TrendingUp size={14} /> Gasto Acumulado
+                </h3>
+                <div className="text-3xl font-black text-white italic">
+                  ${gastoTotalUSAG.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-black text-blue-400 italic">{porcentajeGlobal.toFixed(1)}%</span>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Utilizado</p>
+              </div>
+            </div>
+            
+            <div className="h-3 w-full bg-slate-800/80 rounded-full overflow-hidden border border-white/5">
+              <div 
+                className={`h-full rounded-full transition-all duration-1000 ${porcentajeGlobal > 85 ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                style={{ width: `${Math.min(porcentajeGlobal, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+        {/* -------------------------------------- */}
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           <div className="xl:col-span-1 space-y-4">
@@ -204,9 +250,8 @@ const manejarCierreMensual = async () => {
              {reporte.map((item) => {
                 const numPendientes = obtenerConteoPendientes(item.usuario_nombre);
                 const gastoTotal = parseFloat(item.gasto_total || 0);
-                const limitePresupuesto = parseFloat(item.limite_presupuesto || 0); // Traemos el límite real de la BD
+                const limitePresupuesto = parseFloat(item.limite_presupuesto || 0); 
                 
-                // Ahora el sobregiro es real: compara lo gastado contra el límite de ESE plantel
                 const esNegativo = gastoTotal > limitePresupuesto; 
 
                 return (
@@ -222,12 +267,10 @@ const manejarCierreMensual = async () => {
                     )}
                     <h3 className="font-black text-slate-700 uppercase text-xs">{item.usuario_nombre}</h3>
                     
-                    {/* Monto Gastado */}
                     <div className={`text-2xl font-black ${esNegativo ? 'text-red-600' : 'text-slate-900'}`}>
                       ${gastoTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
                     
-                    {/* Texto auxiliar para que el Admin vea de cuánto es el límite */}
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                       Límite: ${limitePresupuesto.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </p>
@@ -246,7 +289,6 @@ const manejarCierreMensual = async () => {
                   <div className="w-full md:w-auto">
                     <h2 className="text-2xl font-black uppercase italic tracking-tighter">{plantelSeleccionado}</h2>
                     
-                    {/* FILTROS DE ESTATUS */}
                     <div className="flex flex-wrap gap-2 mt-4">
                       <button 
                         onClick={() => setFiltroEstatus("PENDIENTE")}

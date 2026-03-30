@@ -79,7 +79,6 @@ export const getReporteGastos = async () => {
   }
 };
 
-// 1. REGISTRO DE PEDIDO (Solo crea el folio PENDIENTE, no descuenta stock)
 export const consumirItemDinamico = async (datos) => {
   try {
     const res = await axios.post(`${API_BASE}/pedidos/consumir`, datos);
@@ -100,7 +99,6 @@ export const getPedidos = async () => {
   }
 };
 
-// 2. AUTORIZACIÓN (Aquí es donde realmente se descuenta Stock y Capital)
 export const autorizarSolicitud = async (id_solicitud) => {
   try {
     const res = await axios.put(`${API_BASE}/pedidos/autorizar/${id_solicitud}`);
@@ -111,7 +109,6 @@ export const autorizarSolicitud = async (id_solicitud) => {
   }
 };
 
-// 3. MÉTRICAS DASHBOARD (Consulta el saldo real de SQL)
 export const getMetricasPorPlantel = async (nombre) => {
   try {
     const res = await axios.get(`${API_BASE}/pedidos/metricas/${encodeURIComponent(nombre)}`);
@@ -122,7 +119,7 @@ export const getMetricasPorPlantel = async (nombre) => {
   }
 };
 
-// --- OTROS SERVICIOS DE REPORTES ---
+
 
 export const getMetricasReportes = async () => {
   try {
@@ -191,13 +188,23 @@ export const getHistorialReportes = async (inicio = "", fin = "") => {
     throw err;
   }
 };
-// SERVICIO PARA CORTE MENSUAL Y REINICIO DE PRESUPUESTOS
 export const guardarCorte = async (datos) => {
   try {
     const res = await axios.post(`${API_BASE}/api/reportes/guardar-corte`, datos);
     return res.data;
   } catch (err) {
     console.error("Error al ejecutar el corte mensual:", err);
+    throw err;
+  }
+};
+// Confirmar Acuse de Recibo (Plantel)
+export const confirmarEntregaPlantel = async (id_solicitud) => {
+  try {
+    // Nota: Uso /api/reportes/solicitudes porque es el prefijo donde pusiste tu router en el backend
+    const res = await axios.put(`${API_BASE}/api/reportes/solicitudes/${id_solicitud}/entregar`);
+    return res.data;
+  } catch (err) {
+    console.error("Error al confirmar entrega:", err);
     throw err;
   }
 };

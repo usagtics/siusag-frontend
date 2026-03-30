@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { 
   Search, FileDown, Eye, TrendingUp, Building2, Hash, 
-  AlertCircle, ChevronLeft, ChevronRight, X, Save, History, CalendarCheck, Filter, RotateCcw 
+  AlertCircle, ChevronLeft, ChevronRight, X, Save, History, CalendarCheck, Filter, RotateCcw, Printer
 } from "lucide-react";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; 
+import * as XLSX from 'xlsx'; // <-- LA NUEVA LIBRERÍA DE EXCEL
 import Navbar from "../navbar/Navbar";
 import { 
   getMetricasReportes, 
@@ -41,7 +42,7 @@ export default function DashboardReportes() {
       const [resMetricas, resArticulos, resHistorial] = await Promise.all([
         getMetricasReportes(),
         getArticulos(),
-       getHistorialReportes(inicio, fin) 
+        getHistorialReportes(inicio, fin) 
       ]);
       if (resMetricas.ok) setReporte(resMetricas.reporte);
       if (resArticulos.ok) setArticulos(resArticulos.articulos);
@@ -56,14 +57,14 @@ export default function DashboardReportes() {
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
-const manejarFiltro = () => {
-  if (fechaInicio && fechaFin) {
-    console.log("Filtrando desde:", fechaInicio, "hasta:", fechaFin); 
-    cargarDatos(fechaInicio, fechaFin);
-  } else {
-    Swal.fire("Atención", "Selecciona ambas fechas para filtrar", "info");
-  }
-};
+
+  const manejarFiltro = () => {
+    if (fechaInicio && fechaFin) {
+      cargarDatos(fechaInicio, fechaFin);
+    } else {
+      Swal.fire("Atención", "Selecciona ambas fechas para filtrar", "info");
+    }
+  };
 
   const limpiarFiltros = () => {
     setFechaInicio("");
@@ -112,6 +113,7 @@ const manejarFiltro = () => {
     if (data.ok) { setDetallePlantel(data.detalle); setPlantelSeleccionado(nombre); setModalAbierto(true); }
   };
 
+  // --- FUNCIÓN ORIGINAL: PDF INDIVIDUAL ---
   const exportarPDF = async (plantel) => {
     try {
       const data = await getDetallePlantel(plantel);
@@ -133,6 +135,74 @@ const manejarFiltro = () => {
         doc.save(`Reporte_${plantel}.pdf`);
       };
     } catch (err) { console.error(err); }
+  };
+
+  // --- NUEVA FUNCIÓN: EXPORTAR A EXCEL ---
+  const exportarExcel = () => {
+    if (reporte.length === 0) return Swal.fire('Sin datos', 'No hay registros para exportar', 'info');
+
+    const datosExcel = reporte.map(item => ({
+      'Unidad Académica': item.usuario_nombre,
+      'Total de Folios': item.total_folios,
+      'Artículos Consumidos': item.total_articulos,
+      'Gasto Acumulado ($)': parseFloat(item.gasto_total).toFixed(2),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datosExcel);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Consumo_USAG");
+    XLSX.writeFile(workbook, `Reporte_Consumo_USAG_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`);
+  };
+
+  // --- NUEVA FUNCIÓN: IMPRIMIR CIERRES HISTÓRICOS ---
+  const exportarHistorialPDF = () => {
+    if (historial.length === 0) return Swal.fire('Sin datos', 'No hay cierres para imprimir', 'info');
+
+    const doc = new jsPDF();
+    const img = new Image();
+    img.src = logoUsag;
+
+    img.onload = () => {
+      doc.setFillColor(15, 23, 42); 
+      doc.rect(0, 0, 210, 40, 'F');
+      doc.addImage(img, 'PNG', 15, 8, 35, 20); 
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("UNIVERSIDAD SAN ANDRÉS DE GUANAJUATO", 125, 20, { align: "center" });
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("REPORTE HISTÓRICO DE CIERRES MENSUALES", 125, 28, { align: "center" });
+
+      const tableData = historial.map(h => [
+        h.mes_reportado,
+        h.usuario_nombre,
+        `$${parseFloat(h.gasto_total || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        new Date(h.fecha_cierre).toLocaleDateString(),
+        h.creado_por
+      ]);
+
+      autoTable(doc, {
+        startY: 50,
+        head: [['Mes Reportado', 'Unidad Académica', 'Inversión', 'Fecha de Cierre', 'Autorizó']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+        styles: { fontSize: 9, halign: 'center' }
+      });
+
+      doc.save(`Historico_Cierres_USAG.pdf`);
+    };
+    
+    img.onerror = () => {
+      console.warn("No se pudo cargar el logo, generando PDF sin imagen.");
+      doc.setFontSize(16);
+      doc.text("UNIVERSIDAD SAN ANDRÉS - HISTÓRICO", 105, 20, { align: "center" });
+      const tableData = historial.map(h => [ h.mes_reportado, h.usuario_nombre, `$${parseFloat(h.gasto_total).toFixed(2)}`, new Date(h.fecha_cierre).toLocaleDateString(), h.creado_por ]);
+      autoTable(doc, { startY: 30, head: [['Mes', 'Plantel', 'Gasto', 'Fecha', 'Autorizó']], body: tableData, theme: 'grid' });
+      doc.save(`Historico_Cierres_USAG.pdf`);
+    };
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-white text-slate-400 animate-pulse uppercase tracking-widest text-xs">Analizando Datos USAG...</div>;
@@ -219,9 +289,15 @@ const manejarFiltro = () => {
 
         {/* TABLA PRINCIPAL */}
         <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
-             <div className="px-10 py-8 border-b flex justify-between items-center">
+             
+             {/* AQUÍ VA EL BOTÓN DE EXCEL */}
+             <div className="px-10 py-8 border-b flex flex-col md:flex-row justify-between items-center gap-4">
                <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">Registros de Consumo Actual</h3>
+               <button onClick={exportarExcel} className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-400 transition-all shadow-lg active:scale-95">
+                 <FileDown size={14} /> EXPORTAR A EXCEL
+               </button>
              </div>
+             
              <div className="overflow-x-auto px-4">
                 <table className="w-full text-left">
                   <thead>
@@ -243,7 +319,7 @@ const manejarFiltro = () => {
                          <td className="px-8 py-6 text-right font-black text-slate-900 text-lg">${parseFloat(item.gasto_total).toLocaleString()}</td>
                          <td className="px-8 py-6 flex justify-center gap-3">
                             <button onClick={() => verDetalle(item.usuario_nombre)} className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><Eye size={18}/></button>
-                            <button onClick={() => exportarPDF(item.usuario_nombre)} className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-xl hover:bg-blue-500 transition-all"><FileDown size={18}/></button>
+                            <button onClick={() => exportarPDF(item.usuario_nombre)} className="w-10 h-10 flex items-center justify-center bg-slate-900 text-white rounded-xl hover:bg-blue-500 transition-all"><Printer size={18}/></button>
                          </td>
                       </tr>
                     ))}
@@ -261,13 +337,20 @@ const manejarFiltro = () => {
 
         {/* SECCIÓN DE HISTORIAL */}
         <div className="space-y-4 pb-10">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4">
-            <div className="flex items-center gap-2 text-slate-500 font-black uppercase text-xs tracking-widest">
-                <History size={18} className="text-blue-500"/>
-                <h2>Historial de Cierres Oficiales (Físicos)</h2>
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-4">
+            
+            {/* AQUÍ VA EL BOTÓN DE IMPRIMIR HISTÓRICO PDF */}
+            <div className="flex items-center justify-between w-full md:w-auto">
+              <div className="flex items-center gap-2 text-slate-500 font-black uppercase text-xs tracking-widest">
+                  <History size={18} className="text-blue-500"/>
+                  <h2>Historial de Cierres Oficiales (Físicos)</h2>
+              </div>
+              <button onClick={exportarHistorialPDF} className="ml-4 flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-slate-800 transition-all shadow-lg active:scale-95">
+                <Printer size={14} /> IMPRIMIR PDF
+              </button>
             </div>
             
-            <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex flex-wrap items-center gap-3 bg-white p-2 px-4 rounded-2xl shadow-sm border border-slate-100">
                 <div className="flex items-center gap-2 border-r pr-3 border-slate-100">
                     <span className="text-[10px] font-black text-slate-400 uppercase">Desde:</span>
                     <input type="date" value={fechaInicio} onChange={(e)=>setFechaInicio(e.target.value)} className="text-xs font-bold text-slate-600 outline-none" />
